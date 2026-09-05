@@ -1,0 +1,303 @@
+/* Reproductor de la ficha: barra, botones e indice de cortes.
+ *
+ * Vive dentro del panel derecho del articulo, justo debajo del titulo.
+ * Todo cuelga de .tlb-rep para no rozar nada del build original.
+ *
+ * Las medidas van en rem porque el sitio fija la raiz en ~10px con un
+ * clamp: 1rem aqui es lo mismo que en el resto del diseno. */
+
+.tlb-rep {
+  --tlb-azul: #1544e0;
+  --tlb-linea: #0000001f;
+  margin: 3rem 0 0;
+  position: relative;
+}
+
+/* Entra detras del titulo, no a la vez.
+ *
+ * El nodo se inserta enseguida —asi el hueco esta reservado y el texto no
+ * se recoloca a media animacion— pero se ve un momento despues, con la
+ * misma curva que usa el resto del sitio. */
+.tlb-rep--entra {
+  opacity: 0;
+  transform: translateY(1.2rem);
+}
+.tlb-rep--entra.tlb-rep--dentro {
+  opacity: 1;
+  transform: none;
+  transition: opacity .7s cubic-bezier(.19, 1, .22, 1) .45s,
+              transform .9s cubic-bezier(.19, 1, .22, 1) .45s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tlb-rep--entra { opacity: 1; transform: none; }
+  .tlb-rep--entra.tlb-rep--dentro { transition: none; }
+}
+
+/* ── el disco que asoma tras la caratula ────────────────────────── */
+/*
+ * Sale por detras de la portada, girando, y solo enseña su tercio de
+ * arriba. Vuelve a meterse al parar.
+ *
+ * Dos elementos y no uno porque hacen falta dos transformaciones a la vez
+ * y en el mismo elemento se pisarian: el envoltorio se desplaza (con
+ * transicion) y el disco de dentro gira (con animacion).
+ *
+ * La posicion y el diametro los calcula el JS midiendo la portada, porque
+ * las caratulas del archivo van de muy apaisadas a muy verticales y el
+ * disco tiene que caber entero detras cuando esta guardado.
+ */
+
+.tlb-vinilo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  /* Invisible salvo cuando toca verse. Es la red de seguridad: aunque
+     alguna animacion que no hayamos previsto lo deje mal colocado, no
+     puede delatarse porque no esta pintado.
+
+     Esta regla —la lenta— es SOLO la pausa estando quieto en la ficha: el
+     disco se retrae con su curva entero y visible, y solo cuando ya esta
+     del todo tapado por la portada se apaga, de golpe. Nunca se le ve
+     desvanecerse mientras se mete; el apagon ocurre detras de la portada,
+     donde no se ve.
+
+     Cualquier otra forma de esconderse —cambiar de caratula, salir al
+     menu— no pasa por aqui: pasa por .is-moviendo, que es instantanea. */
+  opacity: 0;
+  transition: transform 1s cubic-bezier(.19, 1, .22, 1),
+              opacity 0s linear 1s;
+  will-change: transform, opacity;
+}
+
+/* Fuera: asoma un tercio. Nunca mas, para que siga leyendose la portada.
+   Se enciende en el primer fotograma, sin fundido: lo que se ve emerger es
+   el disco, no una mancha que va cogiendo color. */
+.tlb-vinilo.is-fuera {
+  transform: translate(-50%, -33%);
+  opacity: 1;
+  transition: transform 1s cubic-bezier(.19, 1, .22, 1),
+              opacity 0s linear;
+}
+
+/* Todo lo demas: la portada esta viajando —cambio de caratula, vuelta al
+   menu— y el disco sobra. Se va en un pestaneo: se transparenta y se
+   encoge a la vez.
+
+   Encogerlo no es adorno. Lo que delata el truco es ver asomar un circulo
+   por detras de una portada que vuela, asi que cuanto menos ocupe durante
+   ese viaje, menos posibilidad hay de leer que ahi hay un PNG.
+
+   Una decima, y con curva de salida en las dos. Los dos numeros estan
+   probados a ojo y los dos se pueden estropear tocandolos:
+
+   Bajar de .1s no lo hace mas instantaneo, lo hace a saltos: en tres
+   fotogramas esto ya no se lee como un movimiento rapido sino como un
+   corte.
+
+   Y la curva importa mas que la duracion. Con `linear` el fundido reparte
+   igual y sobre el papel es mas suave, pero pasa por el 50% de opacidad
+   justo a mitad de camino, que es donde el ojo sabe leer escalones. Con
+   `ease-out` el disco ya esta casi apagado en el segundo fotograma: los
+   fotogramas feos siguen ahi, pero caen cuando ya no hay nada que ver. */
+.tlb-vinilo.is-moviendo {
+  transform: translate(-50%, 0) scale(.55);
+  opacity: 0;
+  transition: transform .1s ease-out,
+              opacity .1s ease-out;
+}
+
+.tlb-vinilo__disco {
+  display: block;
+  width: 100%;
+  height: auto;
+  animation: tlb-girar 2.07s linear infinite;  /* 33⅓ rpm, un 15% mas lento */
+  animation-play-state: paused;
+}
+
+/* Sigue girando mientras se guarda: un plato no se para en seco. */
+.tlb-vinilo.is-girando .tlb-vinilo__disco { animation-play-state: running; }
+
+@keyframes tlb-girar { to { transform: rotate(360deg); } }
+
+/* Hay que nombrar tambien los estados: llevan su propia `transition` y con
+   una sola clase de especificidad esto no los alcanzaba. */
+@media (prefers-reduced-motion: reduce) {
+  .tlb-vinilo,
+  .tlb-vinilo.is-fuera,
+  .tlb-vinilo.is-moviendo { transition: none; }
+  .tlb-vinilo__disco { animation: none; }
+}
+
+/* ── barra ──────────────────────────────────────────────────────── */
+
+.tlb-rep__barra {
+  position: relative;
+  height: 2.4rem;               /* alto generoso: lo que se pincha */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  touch-action: none;
+}
+
+.tlb-rep__riel {
+  position: relative;
+  width: 100%;
+  height: .4rem;
+  background: var(--tlb-linea);
+  border-radius: .2rem;
+  overflow: hidden;
+}
+
+.tlb-rep__relleno {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: #000;
+  border-radius: .2rem;
+}
+
+/* Los separadores van FUERA del riel para que no los recorte el
+   overflow, y se pintan por encima del relleno. */
+.tlb-rep__corte {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 1rem;
+  margin-top: -.5rem;
+  background: #fff;
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
+
+.tlb-rep__pomo {
+  position: absolute;
+  top: 50%;
+  width: 1rem;
+  height: 1rem;
+  margin: -.5rem 0 0 -.5rem;
+  border-radius: 50%;
+  background: #000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s ease-out;
+}
+
+.tlb-rep__barra:hover .tlb-rep__pomo,
+.tlb-rep.is-sonando .tlb-rep__pomo { opacity: 1; }
+
+/* ── botones y tiempo ───────────────────────────────────────────── */
+
+.tlb-rep__mandos {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  margin-top: .6rem;
+}
+
+.tlb-rep__boton {
+  width: 2.8rem;
+  height: 2.8rem;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--tlb-linea);
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color .25s ease-out, border-color .25s ease-out;
+}
+
+.tlb-rep__boton:hover { background: #0000000a; border-color: #00000047; }
+.tlb-rep__boton svg { width: 1rem; height: 1rem; fill: currentColor; }
+.tlb-rep__boton--tocar { width: 3.4rem; height: 3.4rem; }
+.tlb-rep__boton--tocar svg { width: 1.2rem; height: 1.2rem; }
+
+.tlb-rep__ahora {
+  font-family: mono, monospace;
+  font-size: clamp(1.2rem, 1.4rem, 14px);
+  text-transform: uppercase;
+  margin-left: .4rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tlb-rep__t {
+  font-family: mono, monospace;
+  font-size: clamp(1.2rem, 1.4rem, 14px);
+  margin-left: auto;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  opacity: .55;
+}
+
+/* ── indice de cortes (solo albumes) ────────────────────────────── */
+
+.tlb-rep__indice {
+  list-style: none;
+  margin: 1.6rem 0 0;
+  padding: 0;
+  border-top: 1px solid var(--tlb-linea);
+}
+
+.tlb-rep__fila {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  width: 100%;
+  padding: .7rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--tlb-linea);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tlb-rep__fila:hover .tlb-rep__titulo { text-decoration: underline; }
+
+.tlb-rep__num {
+  font-family: mono, monospace;
+  font-size: clamp(1.1rem, 1.2rem, 12px);
+  opacity: .4;
+  flex: none;
+  min-width: 2.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tlb-rep__titulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tlb-rep__autor { opacity: .45; }
+
+.tlb-rep__min {
+  flex: none;
+  color: var(--tlb-azul);
+  font-family: mono, monospace;
+  font-size: clamp(1.2rem, 1.4rem, 14px);
+  font-variant-numeric: tabular-nums;
+}
+
+.tlb-rep__fila.is-actual .tlb-rep__titulo { font-weight: 700; }
+.tlb-rep__fila.is-actual .tlb-rep__num { opacity: 1; }
+
+/* En la ficha del About el panel se pone oscuro; si algun dia el
+   articulo hace lo mismo, esto lo deja legible. */
+.is-dark .tlb-rep {
+  --tlb-linea: #ffffff2e;
+}
+.is-dark .tlb-rep__relleno,
+.is-dark .tlb-rep__pomo { background: #fff; }
+.is-dark .tlb-rep__boton:hover { background: #ffffff14; }
