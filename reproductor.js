@@ -947,7 +947,6 @@
 
   var rocRaiz = null;      // el <div> del bundle
   var rocTapa = null;      // la portada dentro del boton
-  var rocEscala = '';
 
   function mq(q) {
     return !!(window.matchMedia && window.matchMedia(q).matches);
@@ -969,40 +968,48 @@
     else c.remove('tlb-roc-abierta');
   }
 
-  /* Cuanto se agranda.
+  /* Cuanto se agranda. Un solo numero para toda la cabecera, que es lo
+   * que la mantiene a plomo: la rocola de la derecha y el menu de la
+   * izquierda crecen lo mismo y siguen guardando la proporcion que les
+   * dio el diseno.
    *
    * Se mide en rem y no en pixeles porque el sitio ajusta la raiz con un
    * clamp: en un iPad 1rem son ~8px, no 16. El techo esta para que el
-   * desplegable —55rem de ancho— no se salga por la izquierda ni con la
-   * tableta en vertical. */
-  function escalaRocola() {
+   * desplegable de la rocola —55rem de ancho— no se salga por la
+   * izquierda ni con la tableta en vertical. */
+  function escalaTactil() {
     var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 10;
     var cabe = (document.documentElement.clientWidth - 4 * rem) / (HUECO * rem);
     return Math.max(ESCALA_MIN, Math.min(ESCALA_MAX, cabe));
   }
 
-  /* El tamano va en el atributo style y no en una clase: la raiz de la
-   * rocola lleva `is-paused`, que Vue escribe reasignando className
-   * entero, y cualquier clase nuestra ahi duraria hasta la siguiente
-   * pausa. El style no lo toca nadie mas —las transiciones del sitio solo
-   * le animan la opacidad— y sobrevive. */
-  function medirRocola() {
-    if (!rocRaiz) return;
-    if (!tabletaTactil()) {
-      if (rocEscala) {
-        rocRaiz.style.transform = '';
-        rocRaiz.style.transformOrigin = '';
-        rocEscala = '';
-      }
-      return;
-    }
-    var t = 'scale(' + escalaRocola().toFixed(3) + ')';
-    if (t === rocEscala) return;
-    rocEscala = t;
-    // Desde la esquina de arriba a la derecha, que es de donde cuelga:
-    // asi crece hacia dentro de la pantalla y no se sale por ningun lado.
-    rocRaiz.style.transformOrigin = 'top right';
-    rocRaiz.style.transform = t;
+  /* Agranda un nodo del bundle sin tocarle las clases.
+   *
+   * El tamano va en el atributo style a proposito. Los dos nodos que se
+   * agrandan llevan clases reactivas —`is-paused` en la rocola, el
+   * opacity-0 del menu cuando se abre una ficha—, y Vue las escribe
+   * reasignando className entero: cualquier clase nuestra ahi duraria
+   * hasta el siguiente cambio de estado. El style no lo toca nadie mas.
+   *
+   * `cenir` es para el menu: es una columna de la reticula y ocupa media
+   * pantalla aunque sus cinco enlaces quepan en un palmo. Sin esto la
+   * caja escalada se iria bastante mas ancha que la ventana; con
+   * max-content el nodo mide lo que se ve y ya esta. */
+  function agrandar(el, esquina, escala, cenir) {
+    if (!el) return;
+    var t = escala ? 'scale(' + escala.toFixed(3) + ')' : '';
+    if (el.style.transform === t) return;
+    el.style.transform = t;
+    el.style.transformOrigin = escala ? esquina : '';
+    if (cenir) el.style.width = escala ? 'max-content' : '';
+  }
+
+  function medirTacto() {
+    var escala = tabletaTactil() ? escalaTactil() : 0;
+    // Cada uno crece desde su esquina, que es de donde cuelga: asi se
+    // quedan los dos donde estaban y se meten hacia dentro.
+    agrandar(rocRaiz, 'top right', escala);
+    agrandar(document.querySelector('.site-menu'), 'top left', escala, true);
   }
 
   function modoTactil() {
@@ -1013,7 +1020,7 @@
       c.remove('tlb-tacto');
       abrirRocola(false);
     }
-    medirRocola();
+    medirTacto();
   }
 
   /* Marca los nodos que necesita la hoja de estilo y reparte el toque del
@@ -1041,10 +1048,9 @@
     var a = rocola();
     var raiz = a && a.parentNode;
     if (!raiz) return;
-    if (raiz === rocRaiz) { medirRocola(); return; }
+    if (raiz === rocRaiz) { medirTacto(); return; }
 
     rocRaiz = raiz;
-    rocEscala = '';
 
     var boton = raiz.querySelector('button');
     var fig = boton && boton.querySelector('figure');
@@ -1072,7 +1078,7 @@
       abrirRocola(!rocolaAbierta());
     }, true);
 
-    medirRocola();
+    medirTacto();
   }
 
   // ── interfaz ────────────────────────────────────────────────────
@@ -1311,9 +1317,11 @@
       requestAnimationFrame(function () {
         pendiente = false;
         montar();
-        // La rocola no la monta esta pasada sino el bundle, y puede
-        // llegar despues que nosotros: se mira en cada vuelta.
+        // Ni la rocola ni el menu los monta esta pasada sino el
+        // bundle, y pueden llegar despues que nosotros: se miran en
+        // cada vuelta.
         montarRocolaTactil();
+        medirTacto();
       });
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener('popstate', montar);
