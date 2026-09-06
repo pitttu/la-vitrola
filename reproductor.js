@@ -913,6 +913,168 @@
     m.k();
   }
 
+  // ── la rocola en pantalla tactil ────────────────────────────────
+  //
+  // El boton de arriba a la derecha y su lista de cinco estan pensados
+  // para un raton: la lista se despliega al pasarle por encima y el icono
+  // de play/pausa solo aparece con el puntero sobre la portada. Las dos
+  // cosas las pinta el bundle con `has-hover:`, que es
+  // `@media (hover:hover) and (pointer:fine)`.
+  //
+  // En una tableta esa media query no se cumple nunca, asi que la lista
+  // no se puede abrir y el icono no se ve jamas. El movil no lo sufre
+  // porque abajo de 650px manda otro diseno; el hueco es justo el de la
+  // tableta, que se lleva el layout de escritorio sin tener raton.
+  //
+  // Lo que cambia, y nada mas:
+  //
+  //   * la rocola entera se agranda en proporcion a la pantalla,
+  //   * el icono de play/pausa esta siempre a la vista,
+  //   * tocar la PORTADA para y arranca —que es lo que ya hacia el boton
+  //     entero, aqui solo se le recorta el area—,
+  //   * y tocar el TEXTO abre y cierra la lista de cinco.
+  //
+  // Las filas de la lista siguen haciendo lo suyo sin tocarlas: el bundle
+  // ya desvia su clic a pincharRocola().
+  //
+  // En escritorio no entra nada de esto. Y si a un iPad le enchufas el
+  // teclado con trackpad, el puntero pasa a ser fino, el hover vuelve a
+  // funcionar y esto se aparta solo.
+
+  var ESCALA_MIN = 1.15;   // por debajo no se gana nada
+  var ESCALA_MAX = 1.5;    // por encima el boton empieza a estorbar
+  var HUECO = 57;          // rem que ocupa el desplegable con su margen
+
+  var rocRaiz = null;      // el <div> del bundle
+  var rocTapa = null;      // la portada dentro del boton
+  var rocEscala = '';
+
+  function mq(q) {
+    return !!(window.matchMedia && window.matchMedia(q).matches);
+  }
+
+  function tabletaTactil() {
+    return 'ontouchstart' in window &&
+           !mq('(max-width: 649px)') &&
+           !mq('(hover: hover) and (pointer: fine)');
+  }
+
+  function rocolaAbierta() {
+    return document.documentElement.classList.contains('tlb-roc-abierta');
+  }
+
+  function abrirRocola(si) {
+    var c = document.documentElement.classList;
+    if (si) c.add('tlb-roc-abierta');
+    else c.remove('tlb-roc-abierta');
+  }
+
+  /* Cuanto se agranda.
+   *
+   * Se mide en rem y no en pixeles porque el sitio ajusta la raiz con un
+   * clamp: en un iPad 1rem son ~8px, no 16. El techo esta para que el
+   * desplegable —55rem de ancho— no se salga por la izquierda ni con la
+   * tableta en vertical. */
+  function escalaRocola() {
+    var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 10;
+    var cabe = (document.documentElement.clientWidth - 4 * rem) / (HUECO * rem);
+    return Math.max(ESCALA_MIN, Math.min(ESCALA_MAX, cabe));
+  }
+
+  /* El tamano va en el atributo style y no en una clase: la raiz de la
+   * rocola lleva `is-paused`, que Vue escribe reasignando className
+   * entero, y cualquier clase nuestra ahi duraria hasta la siguiente
+   * pausa. El style no lo toca nadie mas —las transiciones del sitio solo
+   * le animan la opacidad— y sobrevive. */
+  function medirRocola() {
+    if (!rocRaiz) return;
+    if (!tabletaTactil()) {
+      if (rocEscala) {
+        rocRaiz.style.transform = '';
+        rocRaiz.style.transformOrigin = '';
+        rocEscala = '';
+      }
+      return;
+    }
+    var t = 'scale(' + escalaRocola().toFixed(3) + ')';
+    if (t === rocEscala) return;
+    rocEscala = t;
+    // Desde la esquina de arriba a la derecha, que es de donde cuelga:
+    // asi crece hacia dentro de la pantalla y no se sale por ningun lado.
+    rocRaiz.style.transformOrigin = 'top right';
+    rocRaiz.style.transform = t;
+  }
+
+  function modoTactil() {
+    var c = document.documentElement.classList;
+    if (tabletaTactil()) {
+      c.add('tlb-tacto');
+    } else {
+      c.remove('tlb-tacto');
+      abrirRocola(false);
+    }
+    medirRocola();
+  }
+
+  /* Marca los nodos que necesita la hoja de estilo y reparte el toque del
+   * boton en dos mitades. Se llama en cada vuelta del vigilante del DOM,
+   * asi que tiene que ser barata y no repetirse: la rocola se monta una
+   * vez y vive en el layout, no en la pagina. */
+  /* Si el toque cae en la mitad de la portada.
+   *
+   * No vale preguntar solo por el nodo tocado: la portada mide 28rem de
+   * lado —unos 33px ya agrandada— y eso es poco para un dedo. Se reparte
+   * el boton por la vertical: todo lo que quede a la izquierda de la
+   * portada, con un tercio mas de aire, es su mando; lo demas es texto.
+   *
+   * Se hace con la caja y no con un ::after mas grande porque el nodo de
+   * la portada lleva overflow-hidden del build original: cualquier cosa
+   * que le sobresalga queda recortada y no se puede tocar. */
+  function enLaPortada(ev) {
+    if (!rocTapa) return false;
+    if (rocTapa.contains(ev.target)) return true;
+    var r = rocTapa.getBoundingClientRect();
+    return r.width > 0 && ev.clientX < r.right + r.width * .35;
+  }
+
+  function montarRocolaTactil() {
+    var a = rocola();
+    var raiz = a && a.parentNode;
+    if (!raiz) return;
+    if (raiz === rocRaiz) { medirRocola(); return; }
+
+    rocRaiz = raiz;
+    rocEscala = '';
+
+    var boton = raiz.querySelector('button');
+    var fig = boton && boton.querySelector('figure');
+    // La portada es el envoltorio del <figure>, no el <figure>: el de
+    // dentro lo cambia una <Transition> en cada cancion, el de fuera se
+    // queda. Se busca por estructura y no por su clase de Tailwind, que
+    // es lo unico de aqui que no depende de como se llamen las cosas.
+    rocTapa = fig ? fig.parentNode : null;
+    if (rocTapa) rocTapa.classList.add('tlb-roc__tapa');
+
+    var lista = raiz.querySelector('ul');
+    if (lista) lista.classList.add('tlb-roc__lista');
+
+    // En captura, para poder quitarle el clic al boton antes de que lo
+    // vea: en la portada se lo dejamos —es su play/pausa de siempre— y en
+    // el texto se lo robamos para abrir la lista.
+    raiz.addEventListener('click', function (ev) {
+      if (!tabletaTactil()) return;
+      var b = ev.target && ev.target.closest
+              ? ev.target.closest('button') : null;
+      if (!b || b.closest('ul')) return;        // una fila: su camino
+      if (enLaPortada(ev)) return;              // la portada: play/pausa
+      ev.preventDefault();
+      ev.stopPropagation();
+      abrirRocola(!rocolaAbierta());
+    }, true);
+
+    medirRocola();
+  }
+
   // ── interfaz ────────────────────────────────────────────────────
 
   function construir() {
@@ -1140,14 +1302,38 @@
 
   function arrancar() {
     montar();
+    modoTactil();
+    montarRocolaTactil();
     var pendiente = false;
     new MutationObserver(function () {
       if (pendiente) return;
       pendiente = true;
-      requestAnimationFrame(function () { pendiente = false; montar(); });
+      requestAnimationFrame(function () {
+        pendiente = false;
+        montar();
+        // La rocola no la monta esta pasada sino el bundle, y puede
+        // llegar despues que nosotros: se mira en cada vuelta.
+        montarRocolaTactil();
+      });
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener('popstate', montar);
     window.addEventListener('resize', medirVinilo);
+    window.addEventListener('resize', modoTactil);
+
+    // Girar el iPad cambia el techo del tamano, y enchufarle un trackpad
+    // devuelve el hover: en los dos casos hay que volver a decidir.
+    if (window.matchMedia && window.matchMedia('(hover: hover)').addEventListener) {
+      window.matchMedia('(hover: hover) and (pointer: fine)')
+            .addEventListener('change', modoTactil);
+    }
+
+    // Un toque fuera cierra la lista, como cualquier desplegable. En
+    // captura y antes que el de la rocola, que sale por su propio pie.
+    document.addEventListener('click', function (ev) {
+      if (!rocolaAbierta()) return;
+      if (rocRaiz && rocRaiz.contains(ev.target)) return;
+      abrirRocola(false);
+    }, true);
 
     // Cuando la rocola arranca algo, hay que mirar si es de esta ficha.
     document.addEventListener('play', function (ev) {

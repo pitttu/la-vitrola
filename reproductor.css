@@ -301,3 +301,70 @@
 .is-dark .tlb-rep__relleno,
 .is-dark .tlb-rep__pomo { background: #fff; }
 .is-dark .tlb-rep__boton:hover { background: #ffffff14; }
+
+/* ── la rocola en pantalla tactil ────────────────────────────────
+ *
+ * Arriba a la derecha vive el reproductor del sitio: un boton con la
+ * portada y el titulo, y colgando de el la lista de las cinco ultimas.
+ *
+ * El build original resuelve las dos cosas con el prefijo `has-hover:`,
+ * que compila a `@media (hover:hover) and (pointer:fine)`:
+ *
+ *   * la lista es `hidden has-hover:group-hover:block`, o sea que solo
+ *     existe mientras el raton ronda el boton;
+ *   * y el icono de play/pausa es `opacity-0`, y solo sube a 1 con el
+ *     raton encima de la portada.
+ *
+ * En una tableta esa media query no se cumple NUNCA. La lista no hay
+ * forma de abrirla y el icono no llega a verse: no puedes saber si suena
+ * algo ni elegir otra cancion.
+ *
+ * Aqui se le da una salida tactil. Todo cuelga de .tlb-tacto, que
+ * reproductor.js pone en el <html> solo cuando hay dedo, la ventana no es
+ * la chica y no hay puntero fino: en escritorio —y en un iPad con
+ * trackpad, donde el hover vuelve a funcionar— nada de esto se aplica y
+ * el diseno original se queda como estaba.
+ *
+ * Las clases tlb-roc__* las pone reproductor.js sobre nodos del bundle.
+ * Van en HIJOS y nunca en la raiz: la raiz lleva una clase reactiva
+ * (is-paused) y Vue reescribe su atributo entero cada vez que cambia,
+ * llevandose por delante lo que le anadamos. El tamano, que si va en la
+ * raiz, viaja por el atributo style, que aqui no gobierna nadie mas. */
+
+/* La lista deja de depender del raton y pasa a ser un desplegable de los
+   de toda la vida. Se nombran las dos clases del bundle —`hidden` y
+   `flex` estan las dos en el <ul>— para no depender de cual gana. */
+html.tlb-tacto .tlb-roc__lista { display: none; }
+html.tlb-tacto.tlb-roc-abierta .tlb-roc__lista { display: flex; }
+
+/* El icono de play/pausa, siempre a la vista: en una tableta es lo unico
+   que dice si hay algo sonando.
+
+   Se apunta a `.opacity-0` a proposito, que es la clase que lo escondia,
+   para no pisar el icono de la pista que suena —ese ya se ve siempre— ni
+   inventarse un estado nuevo. */
+html.tlb-tacto .tlb-roc__tapa figure > div.opacity-0 { opacity: 1; }
+
+/* En las filas se deja algo por debajo del que suena, que es el que tiene
+   que cantar. */
+html.tlb-tacto .tlb-roc__lista figure > svg.opacity-0 { opacity: .8; }
+
+/* Un velo bajo el icono. El icono es blanco y las portadas van de negras
+   a casi blancas; sin esto, en media coleccion no se lee.
+
+   Entra entre la imagen y el icono: la imagen no lleva z-index y el icono
+   va con z-2, asi que con z-1 queda justo en medio. */
+html.tlb-tacto .tlb-roc__tapa figure::before,
+html.tlb-tacto .tlb-roc__lista figure::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: #00000059;
+  pointer-events: none;
+}
+
+/* Mientras la lista esta abierta, la portada del boton se lee como lo que
+   es: el mando de play/pausa. */
+html.tlb-tacto .tlb-roc__tapa { cursor: pointer; }
