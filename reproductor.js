@@ -1004,12 +1004,34 @@
     if (cenir) el.style.width = escala ? 'max-content' : '';
   }
 
+  /* El titulo, un poco mas abajo.
+   *
+   * Arranca a la misma altura que el menu —`top-15`, o sea 1.5rem— y con
+   * la cabecera crecida un 50% se le queda pegado. Se le baja hasta que
+   * despeja la fila entera, rocola incluida.
+   *
+   * Se toca `top` y NO el transform. El transform es de GSAP: lo usa para
+   * traer el titulo desde donde lo dejo la portada de carga y para las
+   * transiciones entre paginas, y ahi se escribe en pixeles calculados.
+   * `top` no lo escribe nadie mas en todo el bundle, asi que los dos
+   * conviven sin pisarse y la animacion de las letras no se entera. */
+  var TITULO_TOP = '7.5rem';   // el original es top-15, 1.5rem
+
+  function bajarTitulo(tacto) {
+    var el = document.querySelector('.js-logo');
+    if (!el) return;
+    var t = tacto ? TITULO_TOP : '';
+    if (el.style.top !== t) el.style.top = t;
+  }
+
   function medirTacto() {
-    var escala = tabletaTactil() ? escalaTactil() : 0;
+    var tacto = tabletaTactil();
+    var escala = tacto ? escalaTactil() : 0;
     // Cada uno crece desde su esquina, que es de donde cuelga: asi se
     // quedan los dos donde estaban y se meten hacia dentro.
     agrandar(rocRaiz, 'top right', escala);
     agrandar(document.querySelector('.site-menu'), 'top left', escala, true);
+    bajarTitulo(tacto);
   }
 
   function modoTactil() {
